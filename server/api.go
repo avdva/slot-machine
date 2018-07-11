@@ -2,13 +2,20 @@
 
 package server
 
+type request struct {
+	Machine string
+	UID     string
+	Chips   int64
+	Bet     int64
+}
+
 type response struct {
-	Total float64 `json:"total"`
-	Spins []spin  `json:"spins"`
+	Total int64  `json:"total"`
+	Spins []spin `json:"spins"`
 }
 
 type spin struct {
-	Type  string  `json:"type"`
-	Total float64 `json:"total"`
-	Stops []int   `json:"stops"`
+	Type  string `json:"type"`
+	Total int64  `json:"total"`
+	Stops []int  `json:"stops"`
 }
