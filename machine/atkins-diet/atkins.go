@@ -3,9 +3,7 @@
 package atkins
 
 import (
-	"math/rand"
-	"sync"
-	"time"
+	"log"
 
 	"github.com/avdva/slot-machine/machine"
 )
@@ -14,8 +12,10 @@ const (
 	invalidSymbol = -1
 )
 
+// Line is a machine line of len 5.
 type Line [5]int
 
+// Config is a machine's config
 type Config struct {
 	Wild           int
 	Scatter        int
@@ -26,34 +26,47 @@ type Config struct {
 	BonusBetMult   int
 }
 
-type Machine struct {
-	config Config
-
-	m sync.Mutex
-	// use or own mutex-protected Rand object instead of the global one from math/rand.
-	r *rand.Rand
+// LineSource produces random lines.
+type LineSource interface {
+	Line() Line
 }
 
-func New(config Config) *Machine {
+// Machine is an Atkins-diet slot machine.
+type Machine struct {
+	config Config
+	ls     LineSource
+}
+
+// New returns new Machine.
+func New(config Config, ls LineSource) *Machine {
 	return &Machine{
 		config: config,
-		r:      rand.New(rand.NewSource(time.Now().UnixNano())),
+		ls:     ls,
 	}
 }
 
-func (m *Machine) Spin(bet int64) []machine.SpinResult {
-	var result []machine.SpinResult
+// Wager returns wager for given bet.
+func (m *Machine) Wager(bet int64) int64 {
+	return bet * int64(len(m.config.Paylines))
+}
+
+// Spin makes a spin and returns its result.
+func (m *Machine) Spin(bet int64) machine.Result {
+	var result machine.Result
 	sr, free := m.doMain(bet)
-	result = append(result, sr)
+	result.Spins = append(result.Spins, sr)
 	if free {
-		result = append(result, m.doFree(bet)...)
+		result.Spins = append(result.Spins, m.doFree(bet)...)
+	}
+	for _, s := range result.Spins {
+		result.Total += s.Total
 	}
 	return result
 }
 
 func (m *Machine) doSpin() (machine.SpinResult, bool) {
 	var workingReels [3]Line
-	lines := m.roll()
+	lines := m.ls.Line()
 	for i, l := range lines {
 		workingReels[0][i] = m.config.Reels[(l-1+32)%32][i]
 		workingReels[1][i] = m.config.Reels[l][i]
@@ -94,18 +107,12 @@ func (m *Machine) doFree(bet int64) []machine.SpinResult {
 	return result
 }
 
-func (m *Machine) roll() (l Line) {
-	m.m.Lock()
-	for i := 0; i < 5; i++ {
-		l[i] = m.r.Intn(32)
-	}
-	m.m.Unlock()
-	return
-}
-
 func (m *Machine) calcPay(strikes []strike) int {
 	var result int
 	for _, s := range strikes {
+		if p := m.strikePay(s); p > 0 {
+			log.Println(s, p)
+		}
 		result += m.strikePay(s)
 	}
 	return result
@@ -138,6 +145,7 @@ func (m *Machine) checkBonus(lines [3]Line, strikes []strike) (pay int, haveBonu
 			}
 		}
 	}
+	log.Println(lines, count)
 	pay = m.strikePay(strike{n: count, symb: m.config.Scatter})
 	// we could've given it already as a part of a line bonus.
 	// if so, pay should be 0.
@@ -157,14 +165,14 @@ func (m *Machine) strikePay(s strike) int {
 	if !found || s.n == 0 {
 		return 0
 	}
-	return l[s.n-1]
+	return l[intMin(s.n, len(l))-1]
 }
 
 // strike used to check if we should pay for a roll.
 type strike struct {
 	n    int // strike len.
-	nsym int // how many 'symb's were in the strike, excluding wilds.
 	symb int // what symbol makes a strike.
+	nsym int // how many 'symb's were in the strike, excluding wilds.
 }
 
 func checkPayLine(lines [3]Line, payline Line, wild int) []strike {
@@ -198,4 +206,11 @@ func checkPayLine(lines [3]Line, payline Line, wild int) []strike {
 		result = append(result, strike{n: wildCount, nsym: wildCount, symb: wild})
 	}
 	return result
+}
+
+func intMin(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

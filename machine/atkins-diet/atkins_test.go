@@ -5,8 +5,17 @@ package atkins
 import (
 	"testing"
 
+	"github.com/avdva/slot-machine/machine"
 	"github.com/stretchr/testify/assert"
 )
+
+type testLineSource struct {
+	data Line
+}
+
+func (tls *testLineSource) Line() Line {
+	return tls.data
+}
 
 func TestCheckPayLine(t *testing.T) {
 	const wild = 13
@@ -58,4 +67,63 @@ func TestCheckPayLine(t *testing.T) {
 	actual = checkPayLine(lines, pl, wild)
 	expected = []strike{strike{n: 5, nsym: 5, symb: wild}}
 	a.Equal(expected, actual)
+}
+
+func TestDoMain(t *testing.T) {
+	a := assert.New(t)
+	config := Config{
+		Wild:    10,
+		Scatter: 11,
+		Paylines: []Line{
+			Line{1, 1, 1, 1, 1},
+		},
+		BonusBetMult:   3,
+		BonusFreeSpins: 10,
+		Pays:           make(map[int]Line),
+	}
+	for i := 0; i < 32; i++ {
+		val := (i % 11) + 1
+		l := Line{val, val, val, val, val}
+		config.Reels = append(config.Reels, l)
+	}
+	for i := 1; i <= 11; i++ {
+		l := Line{0, 0, 1, 2, 3}
+		config.Pays[i] = l
+	}
+	tls := &testLineSource{data: Line{0, 0, 0, 0, 0}}
+	m := New(config, tls)
+	res, free := m.doMain(1)
+	a.Equal(machine.SpinResult{Type: "main", Total: 3, Stops: tls.data[:]}, res)
+	a.False(free)
+
+	tls.data = Line{8, 8, 8, 8, 8}
+	_, free = m.doMain(2)
+	a.False(free)
+
+	tls.data = Line{9, 9, 9, 9, 9}
+	_, free = m.doMain(2)
+	a.True(free)
+
+	tls.data = Line{10, 10, 10, 10, 10}
+	res, free = m.doMain(2)
+	a.Equal(machine.SpinResult{Type: "main", Total: 6, Stops: tls.data[:]}, res)
+	a.True(free)
+
+	tls.data = Line{11, 11, 11, 11, 11}
+	_, free = m.doMain(2)
+	a.True(free)
+
+	tls.data = Line{12, 12, 12, 12, 12}
+	_, free = m.doMain(2)
+	a.False(free)
+
+	tls.data = Line{3, 3, 3, 9, 10}
+	res, free = m.doMain(2)
+	a.Equal(machine.SpinResult{Type: "main", Total: 4, Stops: tls.data[:]}, res)
+	a.False(free)
+
+	tls.data = Line{9, 10, 11, 9, 10}
+	res, free = m.doMain(2)
+	a.Equal(machine.SpinResult{Type: "main", Total: 6, Stops: tls.data[:]}, res)
+	a.True(free)
 }

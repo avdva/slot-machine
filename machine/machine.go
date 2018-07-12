@@ -9,7 +9,14 @@ type SpinResult struct {
 	Stops []int
 }
 
-// Machine must be satifsied by any slot-machine.
+// Result contains spins and total pay.
+type Result struct {
+	Spins []SpinResult
+	Total int64
+}
+
+// Interface must be satifsied by any slot-machine.
 type Interface interface {
-	Spin(bet int64) []SpinResult
+	Wager(bet int64) int64
+	Spin(bet int64) Result
 }
