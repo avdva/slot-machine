@@ -12,6 +12,7 @@ type request struct {
 type response struct {
 	Total int64  `json:"total"`
 	Spins []spin `json:"spins"`
+	JWT   string `json:"jwt"`
 }
 
 type spin struct {
