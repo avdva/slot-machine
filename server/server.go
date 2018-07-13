@@ -11,8 +11,10 @@ import (
 	"github.com/avdva/slot-machine/machine"
 
 	jwt "github.com/dgrijalva/jwt-go"
+	httptransport "github.com/go-kit/kit/transport/http"
 	uuid "github.com/satori/go.uuid"
 	"github.com/space307/go-utils/api"
+	"github.com/space307/go-utils/errors"
 )
 
 var (
@@ -38,12 +40,15 @@ func New(config Config) *Server {
 		Addr:   config.Addr,
 		Prefix: "/api",
 		Handlers: []api.PathInfo{
-			{
+			{ // for debug purposes.
 				Path:   "/machines/{machine_id}/new",
 				Enc:    api.EncodeJSONResponse,
 				Dec:    result.newDecoder,
 				E:      result.new,
 				Method: "POST",
+				O: []httptransport.ServerOption{
+					httptransport.ServerErrorEncoder(errors.CtxEncodeError),
+				},
 			},
 			{
 				Path:   "/machines/{machine_id}/spins",
@@ -51,6 +56,9 @@ func New(config Config) *Server {
 				Dec:    result.spinsDecoder,
 				E:      result.spin,
 				Method: "POST",
+				O: []httptransport.ServerOption{
+					httptransport.ServerErrorEncoder(errors.CtxEncodeError),
+				},
 			},
 		},
 	}
@@ -71,7 +79,7 @@ func (s *Server) Stop() error {
 func (s *Server) newDecoder(_ context.Context, r *http.Request) (interface{}, error) {
 	machine := api.RequestVars(r)["machine_id"]
 	if _, found := s.config.Machines[machine]; !found {
-		return nil, api.NewErrorWithCodeResponse("bad machine", http.StatusBadRequest, "bad machine")
+		return nil, errors.NewErrorWithCode("bad machine", "", http.StatusBadRequest)
 	}
 	return machine, nil
 }
@@ -85,7 +93,7 @@ func (s *Server) new(ctx context.Context, req interface{}) (response interface{}
 	})
 	tokenString, err := token.SignedString(secret)
 	if err != nil {
-		return nil, api.NewErrorWithCodeResponse(err.Error(), http.StatusInternalServerError, err.Error())
+		return nil, errors.NewErrorWithCode(err.Error(), "", http.StatusInternalServerError)
 	}
 	return tokenString, nil
 }
@@ -97,11 +105,11 @@ func (s *Server) spinsDecoder(_ context.Context, r *http.Request) (interface{}, 
 	}{}
 	claims.Machine = api.RequestVars(r)["machine_id"]
 	if _, found := s.config.Machines[claims.Machine]; !found {
-		return nil, api.NewErrorWithCodeResponse("bad machine", http.StatusBadRequest, "bad machine")
+		return nil, errors.NewErrorWithCode("bad machine", "", http.StatusBadRequest)
 	}
 	body, err := ioutil.ReadAll(r.Body)
 	if err != nil {
-		return nil, api.NewErrorWithCodeResponse(err.Error(), http.StatusInternalServerError, err.Error())
+		return nil, errors.NewErrorWithCode(err.Error(), "", http.StatusInternalServerError)
 	}
 	token, err := jwt.ParseWithClaims(string(body), &claims, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -110,7 +118,7 @@ func (s *Server) spinsDecoder(_ context.Context, r *http.Request) (interface{}, 
 		return secret, nil
 	})
 	if !token.Valid || err != nil {
-		return nil, api.NewErrorWithCodeResponse(err.Error(), http.StatusUnauthorized, err.Error())
+		return nil, errors.NewErrorWithCode(err.Error(), "", http.StatusUnauthorized)
 	}
 	return claims.request, nil
 }
@@ -120,7 +128,7 @@ func (s *Server) spin(ctx context.Context, req interface{}) (response interface{
 	m := s.config.Machines[r.Machine]
 	wager := m.Wager(r.Bet)
 	if wager > r.Chips {
-		return nil, api.NewErrorWithCodeResponse("insufficient funds", http.StatusBadRequest, "insufficient funds")
+		return nil, errors.NewErrorWithCode("insufficient funds", "", http.StatusBadRequest)
 	}
 	r.Chips -= wager
 	result := m.Spin(r.Bet)
@@ -132,7 +140,7 @@ func (s *Server) spin(ctx context.Context, req interface{}) (response interface{
 		"chips": r.Chips,
 	})
 	if tokenString, err := token.SignedString(secret); err != nil {
-		return nil, api.NewErrorWithCodeResponse(err.Error(), http.StatusInternalServerError, err.Error())
+		return nil, errors.NewErrorWithCode(err.Error(), "", http.StatusInternalServerError)
 	} else {
 		resp.JWT = tokenString
 	}
