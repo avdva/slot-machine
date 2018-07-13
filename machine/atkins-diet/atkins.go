@@ -3,6 +3,7 @@
 package atkins
 
 import (
+	"errors"
 	"log"
 
 	"github.com/avdva/slot-machine/machine"
@@ -38,11 +39,14 @@ type Machine struct {
 }
 
 // New returns new Machine.
-func New(config Config, ls LineSource) *Machine {
+func New(config Config, ls LineSource) (*Machine, error) {
+	if err := validateConfig(config); err != nil {
+		return nil, err
+	}
 	return &Machine{
 		config: config,
 		ls:     ls,
-	}
+	}, nil
 }
 
 // Wager returns wager for given bet.
@@ -145,7 +149,6 @@ func (m *Machine) checkBonus(lines [3]Line, strikes []strike) (pay int, haveBonu
 			}
 		}
 	}
-	log.Println(lines, count)
 	pay = m.strikePay(strike{n: count, symb: m.config.Scatter})
 	// we could've given it already as a part of a line bonus.
 	// if so, pay should be 0.
@@ -213,4 +216,41 @@ func intMin(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func validateConfig(config Config) error {
+	for _, pl := range config.Paylines {
+		for _, p := range pl {
+			if p != 0 && p != 1 && p != 2 {
+				return errors.New("bad payline")
+			}
+		}
+	}
+	allSymbs := make(map[int]struct{})
+	for _, reel := range config.Reels {
+		for _, symb := range reel {
+			if symb == invalidSymbol {
+				return errors.New("invalid symbol value")
+			}
+			allSymbs[symb] = struct{}{}
+		}
+	}
+	if _, found := allSymbs[config.Scatter]; !found {
+		return errors.New("bad scatter")
+	}
+	if _, found := allSymbs[config.Wild]; !found {
+		return errors.New("bad wild")
+	}
+	for symb := range allSymbs {
+		pay, found := config.Pays[symb]
+		if !found {
+			return errors.New("bad paytable")
+		}
+		for _, p := range pay {
+			if p < 0 {
+				return errors.New("bad pay")
+			}
+		}
+	}
+	return nil
 }
