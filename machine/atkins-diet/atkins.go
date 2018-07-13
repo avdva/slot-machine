@@ -4,7 +4,6 @@ package atkins
 
 import (
 	"errors"
-	"log"
 
 	"github.com/avdva/slot-machine/machine"
 )
@@ -56,9 +55,8 @@ func (m *Machine) Wager(bet int64) int64 {
 
 // Spin makes a spin and returns its result.
 func (m *Machine) Spin(bet int64) machine.Result {
-	var result machine.Result
 	sr, free := m.doMain(bet)
-	result.Spins = append(result.Spins, sr)
+	result := machine.Result{Spins: []machine.SpinResult{sr}}
 	if free {
 		result.Spins = append(result.Spins, m.doFree(bet)...)
 	}
@@ -73,7 +71,7 @@ func (m *Machine) doSpin() (machine.SpinResult, bool) {
 	lines := m.ls.Line()
 	for i, l := range lines {
 		workingReels[0][i] = m.config.Reels[(l-1+32)%32][i]
-		workingReels[1][i] = m.config.Reels[l][i]
+		workingReels[1][i] = m.config.Reels[l%32][i]
 		workingReels[2][i] = m.config.Reels[(l+1)%32][i]
 	}
 	strikes := m.checkPayLines(workingReels)
@@ -114,9 +112,6 @@ func (m *Machine) doFree(bet int64) []machine.SpinResult {
 func (m *Machine) calcPay(strikes []strike) int {
 	var result int
 	for _, s := range strikes {
-		if p := m.strikePay(s); p > 0 {
-			log.Println(s, p)
-		}
 		result += m.strikePay(s)
 	}
 	return result
@@ -133,7 +128,9 @@ func (m *Machine) checkPayLines(lines [3]Line) []strike {
 					maxIdx = i
 				}
 			}
-			result = append(result, strikes[maxIdx])
+			if max > 0 {
+				result = append(result, strikes[maxIdx])
+			}
 		}
 	}
 	return result
@@ -225,6 +222,9 @@ func validateConfig(config Config) error {
 				return errors.New("bad payline")
 			}
 		}
+	}
+	if len(config.Reels) != 32 {
+		return errors.New("bad reels")
 	}
 	allSymbs := make(map[int]struct{})
 	for _, reel := range config.Reels {
