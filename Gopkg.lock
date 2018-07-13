@@ -112,7 +112,7 @@
 [[projects]]
   branch = "master"
   name = "github.com/space307/go-utils"
-  packages = ["api","metrics"]
+  packages = ["api","errors","metrics"]
   revision = "1adac966617f98dd55e2dc8571fcecbe8af95de8"
 
 [[projects]]
@@ -136,6 +136,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "67dc9c8cdf9d87368bd733a5915db30743e05f27f5bb49216656b7112659dcd3"
+  inputs-digest = "6ec880bff709c0a777bf39ee7abb7216372353219b02f1947024907c6de302ac"
   solver-name = "gps-cdcl"
   solver-version = 1
