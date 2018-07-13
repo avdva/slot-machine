@@ -55,5 +55,9 @@ func makeMachine(machine string) machine.Interface {
 	if err := json.NewDecoder(f).Decode(&config); err != nil {
 		log.Fatal(err)
 	}
-	return atkins.New(config, atkins.NewRandLineSource())
+	m, err := atkins.New(config, atkins.NewRandLineSource())
+	if err != nil {
+		log.Fatal(err)
+	}
+	return m
 }
