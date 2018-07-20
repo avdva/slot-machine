@@ -6,6 +6,8 @@ import (
 	"encoding/json"
 	"flag"
 	"log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"strings"
@@ -33,6 +35,9 @@ func main() {
 	s := server.New(config)
 	sigchan := make(chan os.Signal)
 	signal.Notify(sigchan, os.Interrupt)
+	go func() {
+		log.Println(http.ListenAndServe("localhost:6060", nil))
+	}()
 	go func() {
 		<-sigchan
 		s.Stop()

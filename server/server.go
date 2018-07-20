@@ -117,7 +117,7 @@ func (s *Server) spinsDecoder(_ context.Context, r *http.Request) (interface{}, 
 		}
 		return secret, nil
 	})
-	if !token.Valid || err != nil {
+	if err != nil || !token.Valid {
 		return nil, errors.NewErrorWithCode(err.Error(), "", http.StatusUnauthorized)
 	}
 	return claims.request, nil
